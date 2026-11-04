@@ -66,3 +66,37 @@ test('aborts during the delay without sleeping the full delay', async () => {
   assert.equal(attempts, 1, 'the abort must interrupt the delay, not wait it out');
   assert.ok(Date.now() - started < 2_000, 'the delay must be cut short by the abort');
 });
+
+test('does not retry an error marked non-retryable', async () => {
+  let attempts = 0;
+  const fatal = Object.assign(new Error('fatal'), { retryable: false });
+  await assert.rejects(
+    () =>
+      retry(
+        async () => {
+          attempts += 1;
+          throw fatal;
+        },
+        { attempts: 5, delayMs: 1 },
+      ),
+    /fatal/,
+  );
+  assert.equal(attempts, 1, 'a non-retryable error must not be retried');
+});
+
+test('rethrows the original error instance, not a copy', async () => {
+  const original = new Error('always');
+  let attempts = 0;
+  await assert.rejects(
+    () =>
+      retry(
+        async () => {
+          attempts += 1;
+          throw original;
+        },
+        { attempts: 2, delayMs: 1 },
+      ),
+    (error) => error === original,
+  );
+  assert.equal(attempts, 2);
+});
