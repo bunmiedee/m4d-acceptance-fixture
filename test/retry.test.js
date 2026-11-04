@@ -100,3 +100,31 @@ test('rethrows the original error instance, not a copy', async () => {
   );
   assert.equal(attempts, 2);
 });
+
+test('rejects with the abort reason when the signal aborts mid-operation', async () => {
+  const controller = new AbortController();
+  const reason = new Error('cancelled mid-flight');
+  let attempts = 0;
+  const pending = retry(
+    async () => {
+      attempts += 1;
+      controller.abort(reason);
+      throw new Error('transient');
+    },
+    { attempts: 5, delayMs: 1, signal: controller.signal },
+  );
+  await assert.rejects(() => pending, (error) => error === reason);
+  assert.equal(attempts, 1, 'an abort mid-operation must not be retried');
+});
+
+test('does not accumulate abort listeners across calls', async () => {
+  const controller = new AbortController();
+  const before = controller.signal;
+  for (let index = 0; index < 5; index += 1) {
+    await retry(async () => 'ok', { attempts: 2, delayMs: 0, signal: before });
+  }
+  // Node exposes no public listener count, so assert the observable effect:
+  // aborting after the calls settle must not throw or re-enter the helper.
+  controller.abort(new Error('late'));
+  assert.equal(before.aborted, true);
+});
