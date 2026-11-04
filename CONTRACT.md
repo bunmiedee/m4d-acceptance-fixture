@@ -29,3 +29,13 @@ against this document rather than trusting a green test run.
    suite does not cover this clause either.
 9. The helper must not use timers that outlive the returned promise: when the
    promise settles, no pending `setTimeout` may remain scheduled.
+10. The abort reason must be preserved in **every** abort path, not only the
+    delay path. If the signal aborts while an `operation` call is in flight,
+    the promise must reject with the signal's `reason` once that call settles,
+    and no further attempt may be made. If the signal aborts between the
+    operation settling and the next attempt starting, the same rule applies.
+    A `DOMException` named `AbortError` is only acceptable when the signal was
+    aborted without a reason.
+11. When `options.signal` is supplied, the helper must not leave an abort
+    listener attached to it after the promise settles. A long-lived signal
+    reused across many `retry` calls must not accumulate listeners.
